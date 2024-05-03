@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "306926818437",
+    "project_id": "chatapp-18e44",
+    "storage_bucket": "chatapp-18e44.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:306926818437:android:2f04737e95f462d072c5ec",
+        "android_client_info": {
+          "package_name": "com.kolink.chatapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCNPf8EJ7Wy3NUT0ehP9YYE12SS1S6Zy5w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

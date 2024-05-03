@@ -140,7 +140,7 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _buildUserInput() {
     return Container(
-      padding: EdgeInsets.only(bottom: 18, right: 18),
+      padding: EdgeInsets.only(bottom: 10, right: 18, top: 10),
       child: Row(
         children: [
           Expanded(

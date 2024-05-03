@@ -37,7 +37,9 @@ class HomePage extends StatelessWidget {
         stream: _chatService.getUsersStream(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Text('Error');
+            return Center(
+              child: Text('Error'),
+            );
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(

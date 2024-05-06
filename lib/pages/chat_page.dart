@@ -35,7 +35,7 @@ class _ChatPageState extends State<ChatPage> {
       }
     });
     Future.delayed(
-      Duration(milliseconds: 500),
+      Duration(seconds: 1),
       () => scrollDown(),
     );
   }
@@ -79,7 +79,7 @@ class _ChatPageState extends State<ChatPage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: Text(widget.receiverEmail),
+        title: Text(widget.receiverEmail, style: TextStyle(fontSize: 15),),
       ),
       body: Column(
         children: [

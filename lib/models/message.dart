@@ -5,7 +5,8 @@ class Message {
   final String senderEmail;
   final String receiverID;
   final String message;
-  final Timestamp timestamp;
+  final DateTime timestamp;
+  bool isSeen;
 
   Message({
     required this.senderID,
@@ -13,6 +14,7 @@ class Message {
     required this.receiverID,
     required this.message,
     required this.timestamp,
+    this.isSeen = false, // Default value for isSeen
   });
 
   Map<String, dynamic> toMap() {
@@ -22,6 +24,18 @@ class Message {
       'receiverID': receiverID,
       'message': message,
       'timestamp': timestamp,
+      'isSeen': isSeen,
     };
+  }
+
+  factory Message.fromMap(Map<String, dynamic> map) {
+    return Message(
+      senderID: map['senderID'] ?? '',
+      senderEmail: map['senderEmail'] ?? '',
+      receiverID: map['receiverID'] ?? '',
+      message: map['message'] ?? '',
+      timestamp: (map['timestamp'] as Timestamp).toDate(),
+      isSeen: map['isSeen'] ?? false,
+    );
   }
 }

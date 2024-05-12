@@ -5,73 +5,133 @@ import 'package:chatapp/service/chat_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../models/message.dart';
+
 class ChatPage extends StatefulWidget {
   final String receiverEmail;
   final String receiverID;
 
   ChatPage({
-    super.key,
+    Key? key,
     required this.receiverEmail,
     required this.receiverID,
-  });
+  }) : super(key: key);
 
   @override
   State<ChatPage> createState() => _ChatPageState();
 }
 
 class _ChatPageState extends State<ChatPage> {
-  FocusNode myFocusNode = FocusNode();
+  final FocusNode _myFocusNode = FocusNode();
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  late final ChatService _chatService;
+  late final AuthService _authService;
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
-    myFocusNode.addListener(() {
-      if (myFocusNode.hasFocus) {
-        Future.delayed(
-          Duration(milliseconds: 500),
-          () => scrollDown(),
-        );
+    _chatService = ChatService();
+    _authService = AuthService();
+
+    _scrollController.addListener(() {
+      if (_scrollController.hasClients &&
+          _scrollController.position.maxScrollExtent > 0) {
       }
     });
-    Future.delayed(
-      Duration(milliseconds: 500),
-      () => scrollDown(),
-    );
+
+    _myFocusNode.addListener(() {
+      if (_myFocusNode.hasFocus) {
+        _scrollToBottom();
+      }
+    });
+
+    WidgetsBinding.instance!.addPostFrameCallback((_) {
+      _scrollToBottom();
+    });
+
+    _markMessageAsSeen();
   }
 
   @override
   void dispose() {
-    // TODO: implement dispose
+    _myFocusNode.dispose();
+    _messageController.dispose();
+    _scrollController.dispose();
     super.dispose();
-    myFocusNode.dispose();
   }
 
-  final TextEditingController _message = TextEditingController();
+  void _markMessageAsSeen() async {
+    String senderID = _authService.getCurrentUser()!.uid;
 
-  //scroll controller
-  final ScrollController _scrollController = ScrollController();
+    String? lastMessageId = await _chatService.getLastMessageId(
+      widget.receiverID,
+      _authService.getCurrentUser()!.uid,
+    );
 
-  void scrollDown() {
+    if (lastMessageId != null) {
+      // Perbarui status pesan menjadi 'seen' di database
+      await _chatService.markMessageAsSeen(lastMessageId, senderID);
+    }
+  }
+
+  void _scrollToBottom() {
     _scrollController.animateTo(
       _scrollController.position.maxScrollExtent,
-      duration: Duration(seconds: 1),
-      curve: Curves.easeIn,
+      duration: Duration(milliseconds: 300),
+      curve: Curves.easeOut,
     );
   }
 
-  //chat & auth service
-  final ChatService _chatService = ChatService();
-
-  final AuthService _authService = AuthService();
-
-  //send message
-  void sendMessage() async {
-    if (_message.text.isNotEmpty) {
-      await _chatService.sendMessage(widget.receiverID, _message.text);
-      _message.clear();
+  void _sendMessage() async {
+    String messageText = _messageController.text.trim();
+    if (messageText.isNotEmpty) {
+      Message newMessage = Message(
+        senderID: _authService.getCurrentUser()!.uid,
+        senderEmail: _authService.getCurrentUser()!.email!,
+        receiverID: widget.receiverID,
+        message: messageText,
+        timestamp: DateTime.now(),
+        isSeen: false,
+      );
+      await _chatService.sendMessage(widget.receiverID, newMessage.message);
+      _messageController.clear();
+      _scrollToBottom();
+      _markMessageAsSeenAndNotifySender();
     }
-    scrollDown();
+  }
+
+  void _markMessageAsSeenAndNotifySender() async {
+    String? lastMessageId = await _getLastMessageId();
+    if (lastMessageId != null) {
+      String senderID = _authService.getCurrentUser()!.uid;
+      await _chatService.markMessageAsSeen(lastMessageId, senderID);
+      await _chatService.notifySenderMessageSeen(lastMessageId);
+    }
+  }
+
+  Future<String?> _getLastMessageId() async {
+    String senderID = _authService.getCurrentUser()!.uid;
+
+    try {
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('messages')
+          .where('senderID', isEqualTo: senderID)
+          .where('receiverID', isEqualTo: widget.receiverID)
+          .orderBy('timestamp', descending: true) // Order by timestamp to get the latest message first
+          .limit(1) // Limit to only the latest message
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        String lastMessageId = querySnapshot.docs.first.id;
+        return lastMessageId;
+      } else {
+        return null; // No message found
+      }
+    } catch (e) {
+      print('Error getting last message ID: $e');
+      return null;
+    }
   }
 
   @override
@@ -94,71 +154,81 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _buildMessageList() {
     String senderID = _authService.getCurrentUser()!.uid;
-    return StreamBuilder(
+    return StreamBuilder<QuerySnapshot>(
       stream: _chatService.getMessages(widget.receiverID, senderID),
-      builder: (context, snapshot) {
+      builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
         if (snapshot.hasError) {
-          return Text('Error');
+          return Text('Error: ${snapshot.error}');
         }
+
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
+          return const Center(
             child: CircularProgressIndicator(),
           );
         }
-        return ListView(
+
+        List<Message> messages = snapshot.data!.docs.map((doc) {
+          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+          return Message.fromMap(data);
+        }).toList();
+
+        messages = messages.reversed.toList();
+
+        messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+        WidgetsBinding.instance!.addPostFrameCallback((_) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: Duration(milliseconds: 500),
+            curve: Curves.easeOut,
+          );
+        });
+
+        return ListView.builder(
           controller: _scrollController,
-          children:
-              snapshot.data!.docs.map((doc) => _buildMessageItem(doc)).toList(),
+          itemCount: messages.length,
+          itemBuilder: (context, index) {
+            Message message = messages[index];
+            bool isCurrentUser = message.senderID == senderID;
+            return Column(
+              crossAxisAlignment:
+              isCurrentUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Chatbubble(
+                  message: message.message,
+                  isCurrentUser: isCurrentUser,
+                  timestamp: message.timestamp,
+                  isSeen: message.isSeen,
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildMessageItem(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-
-    //is current user
-    bool isCurrentUser = data['senderID'] == _authService.getCurrentUser()!.uid;
-
-    var alignment =
-        isCurrentUser ? Alignment.centerRight : Alignment.centerLeft;
-
-    return Container(
-      alignment: alignment,
-      child: Column(
-        crossAxisAlignment:
-            isCurrentUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          Chatbubble(
-            message: data['message'],
-            isCurrentUser: isCurrentUser,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildUserInput() {
     return Container(
-      padding: EdgeInsets.only(bottom: 10, right: 18, top: 10),
+      padding: EdgeInsets.all(10),
       child: Row(
         children: [
           Expanded(
             child: TextFieldCustom(
-              focusNode: myFocusNode,
-              controller: _message,
+              focusNode: _myFocusNode,
+              controller: _messageController,
               hintText: 'Type a message',
               obscureText: false,
             ),
           ),
           Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: Colors.green,
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              onPressed: sendMessage,
-              icon: Icon(
+              onPressed: _sendMessage,
+              icon: const Icon(
                 Icons.send,
                 color: Colors.white,
               ),

@@ -1,18 +1,107 @@
-import 'package:chatapp/service/chat_service.dart';
-import 'package:flutter/material.dart';
+// import 'package:chatapp/service/chat_service.dart';
+// import 'package:flutter/material.dart';
+//
+// import '../Components/user.tile.dart';
+// import '../service/auth/auth_service.dart';
+// import 'chat_page.dart';
+//
+// class HomePage extends StatefulWidget {
+//   @override
+//   State<HomePage> createState() => _HomePageState();
+// }
+//
+// class _HomePageState extends State<HomePage> {
+//   final ChatService _chatService = ChatService();
+//   final AuthService _authService = AuthService();
+//
+//   void logout() {
+//     _authService.logout();
+//   }
+//   // void logout() {
+//   //   final _auth = AuthService();
+//   //   _auth.logout();
+//   // }
+//
+//  // Atur status chat (dibuka/belum dibuka)
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(
+//         centerTitle: true,
+//         backgroundColor: Colors.transparent,
+//         title: Text('Contact'),
+//         actions: [
+//           IconButton(
+//             onPressed: logout,
+//             icon: Icon(Icons.logout),
+//           ),
+//         ],
+//       ),
+//       body: _builduserList(),
+//     );
+//   }
+//
+//   Widget _builduserList() {
+//     return StreamBuilder(
+//         stream: _chatService.getUsersStream(),
+//         builder: (context, snapshot) {
+//           if (snapshot.hasError) {
+//             return Center(
+//               child: Text('Error'),
+//             );
+//           }
+//           if (snapshot.connectionState == ConnectionState.waiting) {
+//             return Center(
+//               child: CircularProgressIndicator(),
+//             );
+//           }
+//           return ListView(
+//             children: snapshot.data!
+//                 .map<Widget>(
+//                   (userData) => _buildUserListItem(userData, context),
+//                 )
+//                 .toList(),
+//           );
+//         });
+//   }
+//
+//   Widget _buildUserListItem(
+//       Map<String, dynamic> userData, BuildContext context) {
+//     if (userData['email'] != _authService.getCurrentUser()!.email) {
+//       return UserTile(
+//         text: userData['email'],
+//         onTap: () {
+//           Navigator.push(
+//             context,
+//             MaterialPageRoute(
+//               builder: (context) => ChatPage(
+//                 receiverEmail: userData['email'],
+//                 receiverID: userData['uid'],
+//               ),
+//             ),
+//           );
+//         },
+//       );
+//     } else {
+//       return Container();
+//     }
+//   }
+// }
 
+import 'package:flutter/material.dart';
+import 'package:chatapp/service/chat_service.dart';
 import '../Components/user.tile.dart';
 import '../service/auth/auth_service.dart';
 import 'chat_page.dart';
 
 class HomePage extends StatelessWidget {
-  void logout() {
-    final _auth = AuthService();
-    _auth.logout();
-  }
-
+  HomePage({super.key});
   final ChatService _chatService = ChatService();
   final AuthService _authService = AuthService();
+
+  void _logout(BuildContext context) {
+    _authService.logout();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,61 +109,56 @@ class HomePage extends StatelessWidget {
       appBar: AppBar(
         centerTitle: true,
         backgroundColor: Colors.transparent,
-        title: Text('Home'),
+        title: const Text('Home'),
         actions: [
           IconButton(
-            onPressed: logout,
-            icon: Icon(Icons.logout),
+            onPressed: () => _logout(context),
+            icon: const Icon(Icons.logout),
           ),
         ],
       ),
-      body: _builduserList(),
-    );
-  }
-
-  Widget _builduserList() {
-    return StreamBuilder(
+      body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _chatService.getUsersStream(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(
+            return const Center(
               child: Text('Error'),
             );
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
+            return const Center(
               child: CircularProgressIndicator(),
             );
           }
-          return ListView(
-            children: snapshot.data!
-                .map<Widget>(
-                  (userData) => _buildUserListItem(userData, context),
-                )
-                .toList(),
-          );
-        });
-  }
-
-  Widget _buildUserListItem(
-      Map<String, dynamic> userData, BuildContext context) {
-    if (userData['email'] != _authService.getCurrentUser()!.email) {
-      return UserTile(
-        text: userData['email'],
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ChatPage(
-                receiverEmail: userData['email'],
-                receiverID: userData['uid'],
-              ),
-            ),
+          final users = snapshot.data ?? [];
+          return ListView.builder(
+            itemCount: users.length,
+            itemBuilder: (context, index) {
+              final userData = users[index];
+              if (userData['email'] != _authService.getCurrentUser()!.email) {
+                return UserTile(
+                  text: userData['email'],
+                  onTap: () => _openChatPage(context, userData),
+                );
+              } else {
+                return Container(); // Skip current user's own tile
+              }
+            },
           );
         },
-      );
-    } else {
-      return Container();
-    }
+      ),
+    );
+  }
+
+  void _openChatPage(BuildContext context, Map<String, dynamic> userData) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatPage(
+          receiverEmail: userData['email'],
+          receiverID: userData['uid'],
+        ),
+      ),
+    );
   }
 }

@@ -17,7 +17,7 @@ class TextFieldCustom extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.only(left: 20, right: 20),
+      padding: EdgeInsets.only( right: 20),
       child: TextFormField(
         focusNode: focusNode,
         textCapitalization: TextCapitalization.sentences,

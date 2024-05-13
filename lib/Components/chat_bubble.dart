@@ -78,7 +78,7 @@ class _ChatbubbleState extends State<Chatbubble> {
                           : Icon(
                               Icons.done,
                               color: Colors.white, // Centang abu-abu jika belum dilihat
-                              size: 18,
+                              size: 19,
                             )
                       : Container(),
                 ],

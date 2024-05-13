@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../Components/button.dart';
 import '../Components/textfield.dart';
+import '../models/message.dart';
 import '../service/auth/auth_service.dart';
 
 class LoginPage extends StatelessWidget {

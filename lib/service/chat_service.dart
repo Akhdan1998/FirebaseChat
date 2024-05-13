@@ -28,13 +28,22 @@ class ChatService {
 
   Future<void> markMessageAsSeen(String messageId, String senderId) async {
     try {
-      await FirebaseFirestore.instance
+      DocumentSnapshot messageSnapshot = await FirebaseFirestore.instance
           .collection('chat_rooms')
           .doc(messageId)
-          .update({'isSeen': true});
+          .get();
+
+      if (messageSnapshot.exists) {
+        await FirebaseFirestore.instance
+            .collection('chat_rooms')
+            .doc(messageId)
+            .update({'isSeen': true});
+      } else {
+        print('Error: Document with ID $messageId not found');
+      }
     } catch (e) {
       print('Error marking message as seen: $e');
-      throw e; // Meneruskan error untuk penanganan lebih lanjut
+      throw e; // Propagate the error for further handling
     }
   }
 
@@ -46,6 +55,24 @@ class ChatService {
       print('Error notifying sender about seen message: $e');
       throw e; // Meneruskan error untuk penanganan lebih lanjut
     }
+  }
+
+  Future<List<String>> getAllMessageIds(String senderId, String receiverId) async {
+    List<String> messageIds = [];
+
+    try {
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('chat_rooms')
+          .where('senderID', isEqualTo: senderId)
+          .where('receiverID', isEqualTo: receiverId)
+          .get();
+
+      messageIds = querySnapshot.docs.map((doc) => doc.id).toList();
+    } catch (e) {
+      print('Error getting message IDs: $e');
+    }
+
+    return messageIds;
   }
 
   Stream<List<Map<String, dynamic>>> getUsersStream() {

@@ -96,6 +96,7 @@ import 'chat_page.dart';
 
 class HomePage extends StatelessWidget {
   HomePage({super.key});
+
   final ChatService _chatService = ChatService();
   final AuthService _authService = AuthService();
 
@@ -135,7 +136,7 @@ class HomePage extends StatelessWidget {
             itemCount: users.length,
             itemBuilder: (context, index) {
               final userData = users[index];
-              if (userData['email'] != _authService.getCurrentUser()!.email) {
+              if (userData['email'] != _authService.getCurrentUser()!.email && userData['email'] != _authService.getCurrentUser()!.email) {
                 return UserTile(
                   text: userData['email'],
                   onTap: () => _openChatPage(context, userData),
@@ -150,15 +151,34 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  void _openChatPage(BuildContext context, Map<String, dynamic> userData) {
+  void _openChatPage(BuildContext context,
+      Map<String, dynamic> userData) async {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ChatPage(
-          receiverEmail: userData['email'],
-          receiverID: userData['uid'],
-        ),
+        builder: (context) =>
+            ChatPage(
+              receiverEmail: userData['email'],
+              receiverID: userData['uid'],
+            ),
       ),
     );
+    await _markMessagesAsSeen(userData['uid']);
+  }
+
+  Future<void> _markMessagesAsSeen(String senderId) async {
+    try {
+      String receiverId = _authService.getCurrentUser()!.uid;
+      // Get all messages from senderId to receiverId
+      List<String> messageIds = await _chatService.getAllMessageIds(
+          senderId, receiverId);
+
+      // Mark each message as seen
+      for (String messageId in messageIds) {
+        await _chatService.markMessageAsSeen(messageId, senderId);
+      }
+    } catch (e) {
+      print('Error marking messages as seen: $e');
+    }
   }
 }

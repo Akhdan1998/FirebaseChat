@@ -51,6 +51,10 @@ class _ChatPageState extends State<ChatPage> {
     });
 
     _markMessageAsSeen();
+    Future.delayed(
+      Duration(seconds: 1),
+      () => _scrollToBottom(),
+    );
   }
 
   @override
@@ -139,7 +143,7 @@ class _ChatPageState extends State<ChatPage> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: Text(widget.receiverEmail),
+        title: Text(widget.receiverEmail, style: TextStyle(fontSize: 15),),
       ),
       body: Column(
         children: [

@@ -61,7 +61,7 @@ class RegisterPage extends StatelessWidget {
               Text('Lets\'s create an account for you'),
               SizedBox(height: 25),
               TextFieldCustom(
-                hintText: 'Email',
+                hintText: 'Username',
                 obscureText: false,
                 controller: email,
               ),

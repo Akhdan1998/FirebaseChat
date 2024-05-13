@@ -45,7 +45,7 @@ class LoginPage extends StatelessWidget {
               Text('Welcome back, you\'ve been missed'),
               SizedBox(height: 25),
               TextFieldCustom(
-                hintText: 'Email',
+                hintText: 'Username',
                 obscureText: false,
                 controller: email,
               ),

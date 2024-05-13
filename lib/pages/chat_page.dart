@@ -140,53 +140,89 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<void> _ensureAuthenticated() async {
-    User? user = _auth.currentUser;
-    if (user == null) {
-      print('User is not authenticated. Please login.');
-      return;
-    }
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
-    await _ensureAuthenticated();
+  Future<File?> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
     final pickedImage = await picker.pickImage(source: source);
 
     if (pickedImage != null) {
-      setState(() {
-        _imageFile = File(pickedImage.path);
-      });
+      return File(pickedImage.path);
+    }
 
-      // _authService.signInWithEmailPassword(email.text, pass.text).whenComplete(() async {
-      //   await _uploadImageToFirebase(_imageFile!);
-      // });
+    return null;
+  }
 
-      if (FirebaseAuth.instance.currentUser != null) {
-        await _uploadImageToFirebase(_imageFile!);
-      } else {
-        print('User is not authenticated. Please login.');
+  Future<void> _uploadImageToFirebase(User user) async {
+    File? imageFile = await _pickImage(ImageSource.camera); // Ganti dengan sumber gambar yang diinginkan
+    print('INI FOTONYA ${imageFile}');
+    if (imageFile != null) {
+      try {
+        String fileName = '${DateTime.now().millisecondsSinceEpoch}_${user.uid.split('/').last}.jpg';
+        Reference firebaseStorageRef = FirebaseStorage.instance.ref().child('/chat_images/$fileName');
+
+        // Mulai unggah
+        UploadTask uploadTask = firebaseStorageRef.putFile(imageFile);
+
+        // Tunggu hingga proses unggah selesai
+        TaskSnapshot taskSnapshot = await uploadTask;
+
+        // Ambil URL gambar yang diunggah
+        String downloadURL = await taskSnapshot.ref.getDownloadURL();
+
+        // URL gambar yang sudah diunggah tersedia di 'downloadURL'
+        print('File uploaded successfully. Download URL: $downloadURL');
+      } catch (e) {
+        print('Error uploading image to Firebase Storage: $e');
       }
     }
   }
 
-  Future<void> _uploadImageToFirebase(File imageFile) async {
-    try {
-      // Buat referensi ke Firebase Storage path yang diinginkan
-      String fileName = path.basename(imageFile.path);
-      Reference firebaseStorageRef = FirebaseStorage.instance.ref().child('imageUrl/$fileName');
-      // Mulai unggah
-      UploadTask uploadTask = firebaseStorageRef.putFile(imageFile);
-      // Monitor proses unggah
-      TaskSnapshot taskSnapshot = await uploadTask;
-      // Ambil URL gambar yang sudah diunggah
-      String downloadURL = await taskSnapshot.ref.getDownloadURL();
-      // URL gambar yang sudah diunggah tersedia di 'downloadURL'
-      print('File uploaded successfully. Download URL: $downloadURL');
-    } catch (e) {
-      print('Error uploading image to Firebase Storage: $e');
-    }
-  }
+  // Future<void> _ensureAuthenticated() async {
+  //   User? user = _auth.currentUser;
+  //   if (user == null) {
+  //     print('User is not authenticated. Please login.');
+  //     return;
+  //   }
+  // }
+
+  // Future<void> _pickImage(ImageSource source) async {
+  //   await _ensureAuthenticated();
+  //   final picker = ImagePicker();
+  //   final pickedImage = await picker.pickImage(source: source);
+  //
+  //   if (pickedImage != null) {
+  //     setState(() {
+  //       _imageFile = File(pickedImage.path);
+  //     });
+  //
+  //     // _authService.signInWithEmailPassword(email.text, pass.text).whenComplete(() async {
+  //     //   await _uploadImageToFirebase(_imageFile!);
+  //     // });
+  //
+  //     if (FirebaseAuth.instance.currentUser != null) {
+  //       await _uploadImageToFirebase(_imageFile!);
+  //     } else {
+  //       print('User is not authenticated. Please login.');
+  //     }
+  //   }
+  // }
+
+  // Future<void> _uploadImageToFirebase(File imageFile) async {
+  //   try {
+  //     // Buat referensi ke Firebase Storage path yang diinginkan
+  //     String fileName = path.basename(imageFile.path);
+  //     Reference firebaseStorageRef = FirebaseStorage.instance.ref().child('imageUrl/$fileName');
+  //     // Mulai unggah
+  //     UploadTask uploadTask = firebaseStorageRef.putFile(imageFile);
+  //     // Monitor proses unggah
+  //     TaskSnapshot taskSnapshot = await uploadTask;
+  //     // Ambil URL gambar yang sudah diunggah
+  //     String downloadURL = await taskSnapshot.ref.getDownloadURL();
+  //     // URL gambar yang sudah diunggah tersedia di 'downloadURL'
+  //     print('File uploaded successfully. Download URL: $downloadURL');
+  //   } catch (e) {
+  //     print('Error uploading image to Firebase Storage: $e');
+  //   }
+  // }
 
   Future<void> _pickDocument() async {
     try {
@@ -196,14 +232,35 @@ class _ChatPageState extends State<ChatPage> {
       );
 
       if (result != null) {
-        setState(() {
-          _pickedFile = File(result.files.single.path!);
-        });
+        File file = File(result.files.single.path!);
+        // Panggil fungsi unggah ke Firebase Storage
+        await _uploadDocumentToFirebase(file);
       } else {
         print('User tidak memilih file.');
       }
     } catch (e) {
       print('Error memilih file: $e');
+    }
+  }
+
+  Future<void> _uploadDocumentToFirebase(File file) async {
+    try {
+      String fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
+      Reference firebaseStorageRef = FirebaseStorage.instance.ref().child('documents/$fileName');
+
+      // Mulai unggah
+      UploadTask uploadTask = firebaseStorageRef.putFile(file);
+
+      // Tunggu hingga proses unggah selesai
+      TaskSnapshot taskSnapshot = await uploadTask;
+
+      // Ambil URL dokumen yang diunggah
+      String downloadURL = await taskSnapshot.ref.getDownloadURL();
+
+      // URL dokumen yang sudah diunggah tersedia di 'downloadURL'
+      print('File uploaded successfully. Download URL: $downloadURL');
+    } catch (e) {
+      print('Error uploading document to Firebase Storage: $e');
     }
   }
 
@@ -306,7 +363,18 @@ class _ChatPageState extends State<ChatPage> {
                               icon: Icon(Icons.photo, color: Colors.redAccent.shade400,),
                             ),
                             IconButton(
-                              onPressed: () => _pickImage(ImageSource.camera),
+                              onPressed: () async {
+                                FirebaseAuth auth = FirebaseAuth.instance;
+                                User? user = auth.currentUser;
+
+                                if (user != null) {
+                                  // Pengguna sudah login, panggil fungsi upload
+                                  _uploadImageToFirebase(user);
+                                } else {
+                                  // Jika pengguna belum login, tampilkan pesan atau arahkan untuk login
+                                  print('User is not authenticated. Please login.');
+                                }
+                              },
                               icon: Icon(Icons.camera_alt, color: Colors.blue.shade400,),
                             ),
                             IconButton(

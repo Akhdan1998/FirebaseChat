@@ -22,7 +22,14 @@ class LoginPage extends StatelessWidget {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text(e.toString()),
+          title: Text('Login Failed'),
+          content: Text('Invalid email or password. Please try again.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('OK'),
+            ),
+          ],
         ),
       );
     }

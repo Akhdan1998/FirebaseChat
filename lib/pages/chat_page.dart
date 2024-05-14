@@ -33,13 +33,21 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _scrollController = ScrollController();
   late final ChatService _chatService;
   late final AuthService _authService;
+  String? imagePath;
   File? _imageFile;
   File? _pickedFile;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  late User? _currentUser;
 
   @override
   void initState() {
     super.initState();
+    _auth.authStateChanges().listen((User? user) {
+      setState(() {
+        _currentUser = user;
+      });
+    });
+
     _chatService = ChatService();
     _authService = AuthService();
 
@@ -47,7 +55,7 @@ class _ChatPageState extends State<ChatPage> {
       _scrollToBottom();
     });
 
-    _markMessageAsSeen();
+    // _markMessageAsSeen();
     Future.delayed(
       Duration(seconds: 1),
       () => _scrollToBottom(),
@@ -62,24 +70,24 @@ class _ChatPageState extends State<ChatPage> {
     super.dispose();
   }
 
-  void _markMessageAsSeen() async {
-    try {
-      String senderID = _authService.getCurrentUser()!.uid;
-
-      String? lastMessageId = await _chatService.getLastMessageId(
-        widget.receiverID,
-        senderID,
-      );
-
-      if (lastMessageId != null) {
-        await _chatService.markMessageAsSeen(lastMessageId, senderID);
-      } else {
-        print('No last message found.');
-      }
-    } catch (e) {
-      print('Error marking message as seen: $e');
-    }
-  }
+  // void _markMessageAsSeen() async {
+  //   try {
+  //     String senderID = _authService.getCurrentUser()!.uid;
+  //
+  //     String? lastMessageId = await _chatService.getLastMessageId(
+  //       widget.receiverID,
+  //       senderID,
+  //     );
+  //
+  //     if (lastMessageId != null) {
+  //       await _chatService.markMessageAsSeen(lastMessageId, senderID);
+  //     } else {
+  //       print('No last message found.');
+  //     }
+  //   } catch (e) {
+  //     print('Error marking message as seen: $e');
+  //   }
+  // }
 
   void _scrollToBottom() {
     _scrollController.animateTo(
@@ -103,164 +111,104 @@ class _ChatPageState extends State<ChatPage> {
       await _chatService.sendMessage(widget.receiverID, newMessage.message);
       _messageController.clear();
       _scrollToBottom();
-      _markMessageAsSeenAndNotifySender();
+      // _markMessageAsSeenAndNotifySender();
     }
   }
 
-  void _markMessageAsSeenAndNotifySender() async {
-    String? lastMessageId = await _getLastMessageId();
-    if (lastMessageId != null) {
-      String senderID = _authService.getCurrentUser()!.uid;
-      await _chatService.markMessageAsSeen(lastMessageId, senderID);
-      await _chatService.notifySenderMessageSeen(lastMessageId);
-    }
-  }
+  // void _markMessageAsSeenAndNotifySender() async {
+  //   String? lastMessageId = await _getLastMessageId();
+  //   if (lastMessageId != null) {
+  //     String senderID = _authService.getCurrentUser()!.uid;
+  //     await _chatService.markMessageAsSeen(lastMessageId, senderID);
+  //     await _chatService.notifySenderMessageSeen(lastMessageId);
+  //   }
+  // }
 
-  Future<String?> _getLastMessageId() async {
-    String senderID = _authService.getCurrentUser()!.uid;
+  // Future<String?> _getLastMessageId() async {
+  //   String senderID = _authService.getCurrentUser()!.uid;
+  //
+  //   try {
+  //     QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+  //         .collection('messages')
+  //         .where('senderID', isEqualTo: senderID)
+  //         .where('receiverID', isEqualTo: widget.receiverID)
+  //         .orderBy('timestamp', descending: true) // Order by timestamp to get the latest message first
+  //         .limit(1) // Limit to only the latest message
+  //         .get();
+  //
+  //     if (querySnapshot.docs.isNotEmpty) {
+  //       String lastMessageId = querySnapshot.docs.first.id;
+  //       return lastMessageId;
+  //     } else {
+  //       return null; // No message found
+  //     }
+  //   } catch (e) {
+  //     print('Error getting last message ID: $e');
+  //     return null;
+  //   }
+  // }
 
-    try {
-      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-          .collection('messages')
-          .where('senderID', isEqualTo: senderID)
-          .where('receiverID', isEqualTo: widget.receiverID)
-          .orderBy('timestamp', descending: true) // Order by timestamp to get the latest message first
-          .limit(1) // Limit to only the latest message
-          .get();
-
-      if (querySnapshot.docs.isNotEmpty) {
-        String lastMessageId = querySnapshot.docs.first.id;
-        return lastMessageId;
-      } else {
-        return null; // No message found
-      }
-    } catch (e) {
-      print('Error getting last message ID: $e');
-      return null;
-    }
-  }
-
-  Future<File?> _pickImage(ImageSource source) async {
+  Future _pickImage(ImageSource source) async {
     final picker = ImagePicker();
     final pickedImage = await picker.pickImage(source: source);
-
     if (pickedImage != null) {
-      return File(pickedImage.path);
-    }
-
-    return null;
-  }
-
-  Future<void> _uploadImageToFirebase(User user) async {
-    File? imageFile = await _pickImage(ImageSource.camera); // Ganti dengan sumber gambar yang diinginkan
-    print('INI FOTONYA ${imageFile}');
-    if (imageFile != null) {
-      try {
-        String fileName = '${DateTime.now().millisecondsSinceEpoch}_${user.uid.split('/').last}.jpg';
-        Reference firebaseStorageRef = FirebaseStorage.instance.ref().child('/chat_images/$fileName');
-
-        // Mulai unggah
-        UploadTask uploadTask = firebaseStorageRef.putFile(imageFile);
-
-        // Tunggu hingga proses unggah selesai
-        TaskSnapshot taskSnapshot = await uploadTask;
-
-        // Ambil URL gambar yang diunggah
-        String downloadURL = await taskSnapshot.ref.getDownloadURL();
-
-        // URL gambar yang sudah diunggah tersedia di 'downloadURL'
-        print('File uploaded successfully. Download URL: $downloadURL');
-      } catch (e) {
-        print('Error uploading image to Firebase Storage: $e');
-      }
+      setState(() {
+        _imageFile = File(pickedImage.path);
+      });
+      _uploadImageToStorage();
+    } else {
+      print("Tidak ada gambar yang dipilih.");
     }
   }
 
-  // Future<void> _ensureAuthenticated() async {
-  //   User? user = _auth.currentUser;
-  //   if (user == null) {
-  //     print('User is not authenticated. Please login.');
-  //     return;
-  //   }
-  // }
+  Future<void> _uploadImageToStorage() async {
+    if (_imageFile == null) return;
 
-  // Future<void> _pickImage(ImageSource source) async {
-  //   await _ensureAuthenticated();
-  //   final picker = ImagePicker();
-  //   final pickedImage = await picker.pickImage(source: source);
-  //
-  //   if (pickedImage != null) {
-  //     setState(() {
-  //       _imageFile = File(pickedImage.path);
-  //     });
-  //
-  //     // _authService.signInWithEmailPassword(email.text, pass.text).whenComplete(() async {
-  //     //   await _uploadImageToFirebase(_imageFile!);
-  //     // });
-  //
-  //     if (FirebaseAuth.instance.currentUser != null) {
-  //       await _uploadImageToFirebase(_imageFile!);
-  //     } else {
-  //       print('User is not authenticated. Please login.');
-  //     }
-  //   }
-  // }
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print("User is not signed in");
+      return;
+    }
 
-  // Future<void> _uploadImageToFirebase(File imageFile) async {
-  //   try {
-  //     // Buat referensi ke Firebase Storage path yang diinginkan
-  //     String fileName = path.basename(imageFile.path);
-  //     Reference firebaseStorageRef = FirebaseStorage.instance.ref().child('imageUrl/$fileName');
-  //     // Mulai unggah
-  //     UploadTask uploadTask = firebaseStorageRef.putFile(imageFile);
-  //     // Monitor proses unggah
-  //     TaskSnapshot taskSnapshot = await uploadTask;
-  //     // Ambil URL gambar yang sudah diunggah
-  //     String downloadURL = await taskSnapshot.ref.getDownloadURL();
-  //     // URL gambar yang sudah diunggah tersedia di 'downloadURL'
-  //     print('File uploaded successfully. Download URL: $downloadURL');
-  //   } catch (e) {
-  //     print('Error uploading image to Firebase Storage: $e');
-  //   }
-  // }
+    String fileName = DateTime.now().millisecondsSinceEpoch.toString();
+    Reference firebaseStorageRef = FirebaseStorage.instance.ref().child('chat_images/$fileName');
+
+    try {
+      await firebaseStorageRef.putFile(_imageFile!);
+      String downloadURL = await firebaseStorageRef.getDownloadURL();
+      print("URL gambar: $downloadURL");
+      _saveImageUrlToFirestore(downloadURL);
+    } catch (e) {
+      print("Gagal mengunggah gambar: $e");
+    }
+  }
+
+  Future<void> _saveImageUrlToFirestore(String imageUrl) async {
+    CollectionReference imagesCollection = FirebaseFirestore.instance.collection('images');
+
+    try {
+      await imagesCollection.add({'url': imageUrl});
+      print("URL gambar berhasil disimpan di Firestore.");
+    } catch (e) {
+      print("Gagal menyimpan URL gambar ke Firestore: $e");
+    }
+  }
 
   Future<void> _pickDocument() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx'], // Jenis file yang diizinkan
+        allowedExtensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx'],
       );
 
-      if (result != null) {
+      if (result != null && result.files.single.path != null) {
         File file = File(result.files.single.path!);
-        // Panggil fungsi unggah ke Firebase Storage
-        await _uploadDocumentToFirebase(file);
+        print('File dipilih: ${file.path}');
       } else {
         print('User tidak memilih file.');
       }
     } catch (e) {
       print('Error memilih file: $e');
-    }
-  }
-
-  Future<void> _uploadDocumentToFirebase(File file) async {
-    try {
-      String fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
-      Reference firebaseStorageRef = FirebaseStorage.instance.ref().child('documents/$fileName');
-
-      // Mulai unggah
-      UploadTask uploadTask = firebaseStorageRef.putFile(file);
-
-      // Tunggu hingga proses unggah selesai
-      TaskSnapshot taskSnapshot = await uploadTask;
-
-      // Ambil URL dokumen yang diunggah
-      String downloadURL = await taskSnapshot.ref.getDownloadURL();
-
-      // URL dokumen yang sudah diunggah tersedia di 'downloadURL'
-      print('File uploaded successfully. Download URL: $downloadURL');
-    } catch (e) {
-      print('Error uploading document to Firebase Storage: $e');
     }
   }
 
@@ -306,7 +254,7 @@ class _ChatPageState extends State<ChatPage> {
 
         messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
-        WidgetsBinding.instance!.addPostFrameCallback((_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
           _scrollController.animateTo(
             _scrollController.position.maxScrollExtent,
             duration: Duration(milliseconds: 500),
@@ -360,22 +308,26 @@ class _ChatPageState extends State<ChatPage> {
                           children: [
                             IconButton(
                               onPressed: () => _pickImage(ImageSource.gallery),
+                              // onPressed: () {},
                               icon: Icon(Icons.photo, color: Colors.redAccent.shade400,),
                             ),
+                            // IconButton(
+                            //   onPressed: () async {
+                            //     AuthService.signInAnonymously();
+                            //   },
+                            //   icon: Icon(
+                            //     Icons.login,
+                            //     color: Colors.blue.shade400,
+                            //   ),
+                            // ),
                             IconButton(
                               onPressed: () async {
-                                FirebaseAuth auth = FirebaseAuth.instance;
-                                User? user = auth.currentUser;
-
-                                if (user != null) {
-                                  // Pengguna sudah login, panggil fungsi upload
-                                  _uploadImageToFirebase(user);
-                                } else {
-                                  // Jika pengguna belum login, tampilkan pesan atau arahkan untuk login
-                                  print('User is not authenticated. Please login.');
-                                }
+                                File? file = await _pickImage(ImageSource.camera);
                               },
-                              icon: Icon(Icons.camera_alt, color: Colors.blue.shade400,),
+                              icon: Icon(
+                                Icons.camera_alt,
+                                color: Colors.blue.shade400,
+                              ),
                             ),
                             IconButton(
                               onPressed: () => _pickDocument(),

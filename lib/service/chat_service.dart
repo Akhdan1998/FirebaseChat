@@ -1,79 +1,54 @@
+import 'dart:io';
+
 import 'package:chatapp/models/message.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:path/path.dart' as path;
+import 'package:path/path.dart';
 
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Future<String?> getLastMessageId(String receiverID, String senderID) async {
-    try {
-      List<String> userIds = [receiverID, senderID]..sort();
-      String chatRoomID = '${userIds[0]}_${userIds[1]}';
-
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('chat_rooms')
-          .doc(chatRoomID)
-          .collection('messages')
-          .orderBy('timestamp', descending: true)
-          .limit(1)
-          .get();
-
-      return querySnapshot.docs.isNotEmpty ? querySnapshot.docs.first.id : null;
-    } catch (e) {
-      print('Error getting last message ID: $e');
-      return null;
-    }
-  }
-
-  Future<void> markMessageAsSeen(String messageId, String senderId) async {
-    try {
-      DocumentSnapshot messageSnapshot = await FirebaseFirestore.instance
-          .collection('chat_rooms')
-          .doc(messageId)
-          .get();
-
-      if (messageSnapshot.exists) {
-        await FirebaseFirestore.instance
-            .collection('chat_rooms')
-            .doc(messageId)
-            .update({'isSeen': true});
-      } else {
-        print('Error: Document with ID $messageId not found');
-      }
-    } catch (e) {
-      print('Error marking message as seen: $e');
-      throw e; // Propagate the error for further handling
-    }
-  }
-
-  Future<void> notifySenderMessageSeen(String messageId) async {
-    try {
-      // Lakukan hal yang diperlukan untuk memberitahu pengirim
-      print('Sender notified that message $messageId has been seen');
-    } catch (e) {
-      print('Error notifying sender about seen message: $e');
-      throw e; // Meneruskan error untuk penanganan lebih lanjut
-    }
-  }
-
-  Future<List<String>> getAllMessageIds(String senderId, String receiverId) async {
-    List<String> messageIds = [];
-
-    try {
-      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-          .collection('chat_rooms')
-          .where('senderID', isEqualTo: senderId)
-          .where('receiverID', isEqualTo: receiverId)
-          .get();
-
-      messageIds = querySnapshot.docs.map((doc) => doc.id).toList();
-    } catch (e) {
-      print('Error getting message IDs: $e');
-    }
-
-    return messageIds;
-  }
+  // Future<void> markMessageAsSeen(String messageId, String senderId) async {
+  //   try {
+  //     DocumentSnapshot messageSnapshot = await FirebaseFirestore.instance
+  //         .collection('chat_rooms')
+  //         .doc(messageId)
+  //         .get();
+  //
+  //     if (messageSnapshot.exists) {
+  //       await FirebaseFirestore.instance
+  //           .collection('chat_rooms')
+  //           .doc(messageId)
+  //           .update({'isSeen': true});
+  //     } else {
+  //       print('Error: Document with ID $messageId not found');
+  //     }
+  //   } catch (e) {
+  //     print('Error marking message as seen: $e');
+  //     throw e; // Propagate the error for further handling
+  //   }
+  // }
+  //
+  // Future<List<String>> getAllMessageIds(String senderId, String receiverId) async {
+  //   List<String> messageIds = [];
+  //
+  //   try {
+  //     QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+  //         .collection('chat_rooms')
+  //         .where('senderID', isEqualTo: senderId)
+  //         .where('receiverID', isEqualTo: receiverId)
+  //         .get();
+  //
+  //     messageIds = querySnapshot.docs.map((doc) => doc.id).toList();
+  //   } catch (e) {
+  //     print('Error getting message IDs: $e');
+  //   }
+  //
+  //   return messageIds;
+  // }
 
   Stream<List<Map<String, dynamic>>> getUsersStream() {
     return _firestore.collection('Users').snapshots().map((snapshot) {
@@ -119,6 +94,16 @@ class ChatService {
   String getChatRoomID(String receiverID, String senderID) {
     List<String> userIds = [receiverID, senderID]..sort();
     return '${userIds[0]}_${userIds[1]}';
+  }
+
+  static Future<String> uploadImage(File imageFile) async {
+    String fileName = basename(imageFile.path);
+
+      Reference ref = FirebaseStorage.instance.ref().child(fileName);
+      UploadTask task = ref.putFile(imageFile);
+      TaskSnapshot snapshot = await task.whenComplete(() {});
+
+      return await snapshot.ref.getDownloadURL();
   }
 
   // Stream<QuerySnapshot> getMessages(String userID, otherUserID) {

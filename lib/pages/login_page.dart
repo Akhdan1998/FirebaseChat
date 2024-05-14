@@ -14,7 +14,7 @@ class LoginPage extends StatelessWidget {
   TextEditingController email = TextEditingController();
   TextEditingController pass = TextEditingController(text: '123456');
 
-  void login(BuildContext context) async {
+  Future<void> login(BuildContext context) async {
     final authService = AuthService();
     try {
       await authService.signInWithEmailPassword(email.text, pass.text);

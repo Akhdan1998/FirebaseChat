@@ -1,5 +1,8 @@
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:get/get.dart';
+import 'package:get/get_core/src/get_main.dart';
 import 'package:path/path.dart' as path;
 import 'package:chatapp/Components/chat_bubble.dart';
 import 'package:chatapp/Components/textfield.dart';
@@ -11,6 +14,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../controller/controller.dart';
 import '../models/message.dart';
 
 class ChatPage extends StatefulWidget {
@@ -33,23 +37,16 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _scrollController = ScrollController();
   late final ChatService _chatService;
   late final AuthService _authService;
-  String? imagePath;
   File? _imageFile;
   File? _pickedFile;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  late User? _currentUser;
 
   @override
   void initState() {
     super.initState();
-    _auth.authStateChanges().listen((User? user) {
-      setState(() {
-        _currentUser = user;
-      });
-    });
-
     _chatService = ChatService();
     _authService = AuthService();
+
+    signInWithEmailAndPassword(widget.receiverEmail, '123456');
 
     WidgetsBinding.instance!.addPostFrameCallback((_) {
       _scrollToBottom();
@@ -148,6 +145,31 @@ class _ChatPageState extends State<ChatPage> {
   //   }
   // }
 
+  Future<void> signInAnonymously() async {
+    try {
+      UserCredential userCredential = await FirebaseAuth.instance.signInAnonymously();
+      // Handle login success, userCredential.user contains the authenticated user
+      print('Otentikasi berhasil! Pengguna ID: ${userCredential.user!.uid}');
+    } catch (e) {
+      print('Error signing in anonymously: $e');
+      // Handle login failure
+    }
+  }
+
+  Future<void> signInWithEmailAndPassword(String email, String password) async {
+    try {
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      // Handle login success, userCredential.user contains the authenticated user
+      print('Authentication successful! User ID: ${userCredential.user!.uid}');
+    } catch (e) {
+      print('Error signing in with email and password: $e');
+      // Handle login failure
+    }
+  }
+
   Future _pickImage(ImageSource source) async {
     final picker = ImagePicker();
     final pickedImage = await picker.pickImage(source: source);
@@ -155,44 +177,77 @@ class _ChatPageState extends State<ChatPage> {
       setState(() {
         _imageFile = File(pickedImage.path);
       });
-      _uploadImageToStorage();
+
+      try {
+        // Upload gambar yang dipilih ke Firebase Storage
+        await uploadImage(_imageFile!);
+      } catch (e) {
+        print('Error uploading image: $e');
+        // Handle error jika terjadi kegagalan upload
+      }
+
     } else {
       print("Tidak ada gambar yang dipilih.");
     }
   }
 
-  Future<void> _uploadImageToStorage() async {
-    if (_imageFile == null) return;
-
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      print("User is not signed in");
-      return;
-    }
-
-    String fileName = DateTime.now().millisecondsSinceEpoch.toString();
-    Reference firebaseStorageRef = FirebaseStorage.instance.ref().child('chat_images/$fileName');
-
+  Future<void> uploadImage(File imageFile) async {
     try {
-      await firebaseStorageRef.putFile(_imageFile!);
-      String downloadURL = await firebaseStorageRef.getDownloadURL();
-      print("URL gambar: $downloadURL");
-      _saveImageUrlToFirestore(downloadURL);
+      // Ambil referensi dari Firebase Storage
+      FirebaseStorage storage = FirebaseStorage.instance;
+
+      // Ambil referensi folder untuk menyimpan gambar, misalnya 'images'
+      Reference storageRef = storage.ref().child('images/${DateTime.now().millisecondsSinceEpoch}');
+
+      // Upload gambar ke Firebase Storage
+      UploadTask uploadTask = storageRef.putFile(imageFile);
+
+      // Tunggu hingga proses upload selesai
+      TaskSnapshot taskSnapshot = await uploadTask;
+
+      // Ambil URL dari gambar yang telah diupload
+      String imageUrl = await taskSnapshot.ref.getDownloadURL();
+
+      // Lakukan sesuatu dengan URL gambar, seperti menyimpan ke database atau menampilkan di aplikasi
+      print('Image uploaded successfully: $imageUrl');
     } catch (e) {
-      print("Gagal mengunggah gambar: $e");
+      print('Error uploading image: $e');
+      // Handle error jika terjadi kegagalan upload
     }
   }
 
-  Future<void> _saveImageUrlToFirestore(String imageUrl) async {
-    CollectionReference imagesCollection = FirebaseFirestore.instance.collection('images');
-
-    try {
-      await imagesCollection.add({'url': imageUrl});
-      print("URL gambar berhasil disimpan di Firestore.");
-    } catch (e) {
-      print("Gagal menyimpan URL gambar ke Firestore: $e");
-    }
-  }
+  // Future<void> _uploadImageToStorage() async {
+  //   if (_imageFile == null) return;
+  //
+  //   User? user = FirebaseAuth.instance.currentUser;
+  //   if (user == null) {
+  //     print("User is not signed in");
+  //     return;
+  //   }
+  //
+  //   String fileName = DateTime.now().millisecondsSinceEpoch.toString();
+  //   Reference firebaseStorageRef = FirebaseStorage.instance.ref().child('chat_images/$fileName');
+  //
+  //   try {
+  //     await firebaseStorageRef.putFile(_imageFile!);
+  //     String downloadURL = await firebaseStorageRef.getDownloadURL();
+  //     print("URL gambar: $downloadURL");
+  //     _saveImageUrlToFirestore(downloadURL);
+  //   } catch (e) {
+  //     print("Gagal mengunggah gambar: $e");
+  //   }
+  // }
+  //
+  // Future<void> _saveImageUrlToFirestore(String imageUrl) async {
+  //   CollectionReference imagesCollection = FirebaseFirestore.instance.collection('images');
+  //
+  //   try {
+  //     await imagesCollection.add({'url': imageUrl});
+  //     print("URL gambar berhasil disimpan di Firestore.");
+  //   } catch (e) {
+  //     print("Gagal menyimpan URL gambar ke Firestore: $e");
+  //   }
+  // }
 
   Future<void> _pickDocument() async {
     try {
@@ -211,6 +266,60 @@ class _ChatPageState extends State<ChatPage> {
       print('Error memilih file: $e');
     }
   }
+
+  // late ChatProvider chatProvider;
+  // File? imageFile;
+  // bool isLoading = false;
+  // String imageUrl = "";
+  // String groupChatId = "";
+  // String currentUserId = "";
+  // Future _pickImage() async {
+  //   ImagePicker imagePicker = ImagePicker();
+  //   final pickedFile = await imagePicker.pickImage(source: ImageSource.camera);
+  //   if (pickedFile != null) {
+  //     imageFile = File(pickedFile.path);
+  //     if (imageFile != null) {
+  //       setState(() {
+  //         isLoading = true;
+  //       });
+  //       uploadFile();
+  //     }
+  //   }
+  // }
+  //
+  // Future uploadFile() async {
+  //   UploadTask uploadTask = chatProvider.uploadFile(imageFile!,
+  //       "image/${DateTime.now().millisecondsSinceEpoch.toString()}");
+  //   try {
+  //     TaskSnapshot snapshot = await uploadTask;
+  //     imageUrl = await snapshot.ref.getDownloadURL();
+  //     setState(() {
+  //       isLoading = false;
+  //       onSendMessage(imageUrl, TypeMessage.image);
+  //     });
+  //   } on FirebaseException catch (e) {
+  //     setState(() {
+  //       isLoading = false;
+  //     });
+  //     Fluttertoast.showToast(msg: e.message ?? e.toString());
+  //     print('WWKWKWKWKWKWKWKK ${e.message ?? e.toString()}');
+  //   }
+  // }
+  //
+  // void onSendMessage(String content, int type, {String? duration = ""}) {
+  //   if (content.trim().isNotEmpty) {
+  //     _messageController.clear();
+  //     chatProvider.sendMessage(
+  //         content, type, groupChatId, currentUserId,
+  //         // widget.data.id.toString(),
+  //         duration: duration!);
+  //     _scrollController.animateTo(0,
+  //         duration: Duration(milliseconds: 300), curve: Curves.easeOut);
+  //   } else {
+  //     Fluttertoast.showToast(
+  //         msg: 'Nothing to send', backgroundColor: Colors.grey);
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -308,21 +417,18 @@ class _ChatPageState extends State<ChatPage> {
                           children: [
                             IconButton(
                               onPressed: () => _pickImage(ImageSource.gallery),
-                              // onPressed: () {},
                               icon: Icon(Icons.photo, color: Colors.redAccent.shade400,),
                             ),
-                            // IconButton(
-                            //   onPressed: () async {
-                            //     AuthService.signInAnonymously();
-                            //   },
-                            //   icon: Icon(
-                            //     Icons.login,
-                            //     color: Colors.blue.shade400,
-                            //   ),
-                            // ),
                             IconButton(
-                              onPressed: () async {
-                                File? file = await _pickImage(ImageSource.camera);
+                              onPressed: () {
+                                signInWithEmailAndPassword(
+                                        widget.receiverEmail, '123456')
+                                    .whenComplete(() {
+                                  _pickImage(ImageSource.camera)
+                                      .whenComplete(() {
+                                    Navigator.pop(context);
+                                  });
+                                });
                               },
                               icon: Icon(
                                 Icons.camera_alt,
